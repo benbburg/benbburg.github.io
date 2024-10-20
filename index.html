@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Picture Gallery</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="title-banner">
+      <h1>Random Picture Gallery</h1>
+      <nav>
+        <button class="nav-button" id="home-button">Home</button>
+        <button class="nav-button" id="about-button">About</button>
+        <button class="nav-button" id="contact-button">Contact</button>
+      </nav>
+    </div>
+	
+	<div class="about-container" id="about-container">
+      <h2>2004 Kawasaki Ninja 250R</h2>
+      <p>Riden through the streets of lower Glenside and beyond throughout the greater half of 2024, this pair of training wheels held up to the daily commute flawless.  Yes I drain the carbs after each ride, I have been assured it goes a long way.</p>
+    </div>
+    <div class="contact-container" id="contact-container">
+      <h2>Get in Touch</h2>
+      <p>What is on your mind?</p>
+      <form>
+        <input type="text" placeholder="Name">
+        <input type="email" placeholder="Email">
+        <textarea placeholder="Message"></textarea>
+        <button>Send</button>
+      </form>
+    </div>
+	
+    <div class="picture-container">
+      <img id="picture" src="" alt="Random Picture">
+      <div class="picture-controls">
+        <button class="picture-button" id="previous-button"></button>
+        <button class="picture-button" id="next-button"></button>
+      </div>
+    </div>
+    
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
