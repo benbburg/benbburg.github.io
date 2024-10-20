@@ -1,0 +1,126 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: auto;
+}
+
+.container {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f7f7f7;
+  border: 1px solid #ddd;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.title-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #333;
+  color: #fff;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.title-banner h1 {
+  margin: 0;
+  padding: 0;
+}
+
+.nav-button {
+  background-color: #333;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.nav-button:hover {
+  background-color: #444;
+}
+
+.picture-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  
+}
+
+.button-container {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+#picture {
+  max-width: 80%;
+  max-height: 600px;
+  object-fit: contain;
+  border: 10px solid #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.picture-button {
+  background-color: #333;
+  color: #fff;
+  border: none;
+  margin: 10px 0px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.picture-button:hover {
+  background-color: #444;
+}
+
+#about-container {
+  display: none;
+}
+
+#about-container.show {
+	padding: 3%;
+  display: block;
+}
+
+#contact-container {
+	padding: 3%;
+  display: none;
+  
+}
+
+#contact-container.show {
+  display: block;
+  margin: auto;
+}
+
+/* 
+  This is a media query to make the website responsive.
+*/
+@media (max-width: 600px) {
+ .container {
+    margin: 0;
+    padding: 0;
+  }
+ .title-banner {
+    flex-direction: column;
+    align-items: center;
+  }
+ .nav-button {
+    margin-bottom: 10px;
+  }
+ .picture-container {
+    padding: 10px;
+  }
+
+	#contact-container.show {
+	  display: block;
+	  margin-left: auto;
+	  margin-right: auto;
+	  width: 40%;
+	}
+
+}
