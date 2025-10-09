@@ -1,3 +1,7 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
 // --- Touch drawing ---
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
@@ -58,3 +62,4 @@ function drawStampAt(pos) {
   ctx.drawImage(stampImage, pos.x - w/2, pos.y - h/2, w, h);
   quantizeImage();
 }
+});
