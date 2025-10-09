@@ -275,54 +275,59 @@ input[type="range"] { width: 120px; vertical-align: middle; }
   });
 
   // TOUCH EVENTS (mobile)
-  base.addEventListener('touchstart', e=>{
-    e.preventDefault();
-    if(e.touches.length===1){
-      const pos=getTouchPos(e.touches[0]);
-      mouseX=pos.x; mouseY=pos.y;
-      if(mode==='draw'){drawing=true; paintAt(pos.x,pos.y);}
-      else if(mode==='text'){placeTextAt(pos);}
-      else if(mode==='stamp' && stampActive){placeStampAt(pos);}
-    } else if(e.touches.length===2 && stampActive){
-      // pinch start
-      touchStartDistance = getDistance(e.touches[0], e.touches[1]);
-      initialStampScale = stampScale;
+  // --- MOBILE TOUCH EVENTS (text/stamp ghost first, pinch scale) ---
+let readyToPlace = false; // first touch shows ghost only
+
+base.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if(e.touches.length === 1){
+    const pos = getTouchPos(e.touches[0]);
+    mouseX = pos.x; mouseY = pos.y;
+
+    if(mode === 'draw'){
+      drawing = true;
+      paintAt(pos.x,pos.y);
+    } else if(mode === 'text' || mode === 'stamp'){
+      // show ghost first, ignore first touch for placement
+      if(!readyToPlace){
+        readyToPlace = true;
+        drawOverlay();
+        return;
+      }
+
+      // after first touch, place text or stamp
+      if(mode==='text' && textInput.value) placeTextAt(pos);
+      if(mode==='stamp' && stampActive) placeStampAt(pos);
     }
-    drawOverlay();
-  });
 
-  base.addEventListener('touchmove', e=>{
-    e.preventDefault();
-    if(e.touches.length===1){
-      const pos=getTouchPos(e.touches[0]);
-      mouseX=pos.x; mouseY=pos.y;
-      if(drawing && mode==='draw') paintAt(pos.x,pos.y);
-    } else if(e.touches.length===2 && stampActive){
-      const newDist = getDistance(e.touches[0], e.touches[1]);
-      stampScale = initialStampScale * (newDist / touchStartDistance);
-      stampW = Math.round(stampImage.width * stampScale);
-      stampH = Math.round(stampImage.height * stampScale);
-    }
-    drawOverlay();
-  });
-
-  base.addEventListener('touchend', e=>{
-    if(e.touches.length===0) drawing=false;
-    if(e.touches.length<2) touchStartDistance=null;
-  });
-
-  function getTouchPos(touch){
-    const rect=base.getBoundingClientRect();
-    const scaleX=base.width/rect.width;
-    const scaleY=base.height/rect.height;
-    return {x: Math.floor((touch.clientX-rect.left)*scaleX), y: Math.floor((touch.clientY-rect.top)*scaleY)};
+  } else if(e.touches.length === 2 && stampActive){
+    // pinch start for stamp scaling
+    touchStartDistance = getDistance(e.touches[0], e.touches[1]);
+    initialStampScale = stampScale;
   }
 
-  function getDistance(t1,t2){
-    const dx=t2.clientX-t1.clientX;
-    const dy=t2.clientY-t1.clientY;
-    return Math.hypot(dx,dy);
+  drawOverlay();
+});
+
+base.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(e.touches.length === 1){
+    const pos = getTouchPos(e.touches[0]);
+    mouseX = pos.x; mouseY = pos.y;
+    if(drawing && mode==='draw') paintAt(pos.x,pos.y);
+  } else if(e.touches.length === 2 && stampActive){
+    const newDist = getDistance(e.touches[0], e.touches[1]);
+    stampScale = initialStampScale * (newDist / touchStartDistance);
+    stampW = Math.round(stampImage.width * stampScale);
+    stampH = Math.round(stampImage.height * stampScale);
   }
+  drawOverlay();
+});
+
+base.addEventListener('touchend', e=>{
+  if(e.touches.length===0) drawing = false;
+  if(e.touches.length<2) touchStartDistance = null;
+});
 
   // IMAGE UPLOAD
   upload.addEventListener('change', ev=>{
