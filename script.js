@@ -1,3 +1,8 @@
+// --- wait for site to load ---
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  
 // --- Touch drawing ---
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
