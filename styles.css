@@ -1,1 +1,7 @@
-
+html, body {
+  touch-action: none;      /* prevents default panning/zooming */
+  overscroll-behavior: none;
+}
+canvas {
+  touch-action: none;      /* ensures canvas captures touches */
+}
