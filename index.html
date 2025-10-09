@@ -1,46 +1,443 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Random Picture Gallery</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>Betaflight Boot Logo Maker — Brush + Ghosts</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      background: #000;
+      color: #00ff00;
+      font-family: monospace;
+      text-align: center;
+      padding: 20px;
+    }
+    .canvas-wrap {
+      display: inline-block;
+      position: relative;
+      border: 1px solid #00ff00;
+      line-height: 0;
+      background: #00ff00; /* ensure no transparency */
+    }
+    canvas {
+      image-rendering: pixelated;
+      display: block;
+      width: 576px; /* scaled for easier editing (2x) */
+      height: 144px;
+      cursor: crosshair;
+    }
+    #overlay {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none; /* overlay doesn't steal events */
+    }
+    .toolbar {
+      margin: 10px 0;
+    }
+    input, button, select, label {
+      background: #111;
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      font-family: monospace;
+      margin: 3px;
+      padding: 4px 8px;
+    }
+    input[type="range"] { width: 120px; vertical-align: middle; }
+    .small { font-size: 12px; color: #7fff7f; }
+    .controls-row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:8px; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="title-banner">
-      <h1>Random Picture Gallery</h1>
-      <nav>
-        <button class="nav-button" id="home-button">Gallery</button>
-        <button class="nav-button" id="about-button">About</button>
-        <button class="nav-button" id="contact-button">Contact</button>
-      </nav>
-    </div>
-	
-	<div class="about-container" id="about-container">
-      <h2>2004 Kawasaki Ninja 250R</h2>
-      <p>Riden through the streets of lower Glenside and beyond throughout the greater half of 2024, this pair of training wheels held up to the daily commute flawless.  Yes I drain the carbs after each ride, I have been assured it goes a long way.</p>
-    </div>
-    <div class="contact-container" id="contact-container">
-      <h2>Get in Touch</h2>
-      <p>What is on your mind?</p>
-      <form>
-        <input type="text" placeholder="Name">
-        <input type="email" placeholder="Email">
-        <textarea placeholder="Message"></textarea>
-        <button>Send</button>
-      </form>
-    </div>
-	
-    <div class="picture-container">
-      <img id="picture" src="" alt="Random Picture">
-      <div class="picture-controls">
-        <button class="picture-button" id="previous-button"></button>
-        <button class="picture-button" id="next-button"></button>
-      </div>
-    </div>
-    
+  <h1>🪰 Betaflight Boot Logo Maker</h1>
+
+  <div class="toolbar controls-row">
+    <label>Color:
+      <select id="color">
+        <option value="#000000">Black</option>
+        <option value="#ffffff">White</option>
+        <option value="#00ff00" selected>Green</option>
+      </select>
+    </label>
+
+    <label>Brush:
+      <input id="brushSize" type="range" min="1" max="16" value="1" />
+      <span id="brushLabel" class="small">1</span>
+    </label>
+
+    <button id="drawMode">Draw</button>
+    <button id="textMode">Text</button>
+
+    <label id="fontUI" style="display:none;">Text size:
+      <input id="fontSize" type="range" min="6" max="96" value="16" />
+      <span id="fontLabel" class="small">16</span>
+    </label>
+
+    <input id="textInput" placeholder="Type text…" style="display:none; width:160px;" />
+
+    <input type="file" id="upload" accept="image/*" />
+
+    <button id="cancelStamp" style="display:none;">Cancel Stamp</button>
+
+    <button id="exportBmp">Export BMP</button>
   </div>
-  <script src="script.js"></script>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <!-- base canvas for permanent pixels -->
+    <canvas id="base" width="288" height="72"></canvas>
+    <!-- overlay for ghosting previews -->
+    <canvas id="overlay" width="288" height="72"></canvas>
+  </div>
+
+  <p class="small">Resolution: 288×72 — palette: black, white, green (#00FF00). Use brush scale and text size. Upload acts as a stamp (ghost until placement).</p>
+
+  <script>
+  (function(){
+    const base = document.getElementById('base');
+    const overlay = document.getElementById('overlay');
+    const wrap = document.getElementById('canvasWrap');
+
+    // ensure overlay canvas overlay matches displayed size
+    overlay.style.width = base.style.width;
+    overlay.style.height = base.style.height;
+
+    const bctx = base.getContext('2d', { willReadFrequently: true });
+    const octx = overlay.getContext('2d');
+    bctx.imageSmoothingEnabled = false;
+    octx.imageSmoothingEnabled = false;
+
+    // Fill base with green background (no transparency)
+    bctx.fillStyle = '#00FF00';
+    bctx.fillRect(0,0,base.width, base.height);
+
+    // UI elements
+    const colorEl = document.getElementById('color');
+    const brushEl = document.getElementById('brushSize');
+    const brushLabel = document.getElementById('brushLabel');
+    const drawBtn = document.getElementById('drawMode');
+    const textBtn = document.getElementById('textMode');
+    const textInput = document.getElementById('textInput');
+    const fontUI = document.getElementById('fontUI');
+    const fontSize = document.getElementById('fontSize');
+    const fontLabel = document.getElementById('fontLabel');
+    const upload = document.getElementById('upload');
+    const cancelStamp = document.getElementById('cancelStamp');
+    const exportBmp = document.getElementById('exportBmp');
+
+    let currentColor = colorEl.value;
+    let brushSize = parseInt(brushEl.value,10);
+    let mode = 'draw'; // draw | text | stamp
+    let drawing = false;
+
+    // stamp state
+    let stampImage = null;
+    let stampW = 0, stampH = 0;
+    let stampScale = 1; // computed to fit; user can adjust later if needed
+    let stampActive = false;
+
+    // ghost cursor pos
+    let mouseX = 0, mouseY = 0;
+
+    // event wiring
+    colorEl.addEventListener('change', () => { currentColor = colorEl.value; });
+    brushEl.addEventListener('input', () => {
+      brushSize = parseInt(brushEl.value,10);
+      brushLabel.textContent = brushSize;
+    });
+    fontSize.addEventListener('input', () => { fontLabel.textContent = fontSize.value; });
+    drawBtn.addEventListener('click', () => setMode('draw'));
+    textBtn.addEventListener('click', () => setMode('text'));
+    cancelStamp.addEventListener('click', () => { stampImage = null; stampActive = false; cancelStamp.style.display='none'; setMode('draw'); drawOverlay(); });
+
+    function setMode(m) {
+      mode = m;
+      if (m === 'text') {
+        textInput.style.display = 'inline-block';
+        fontUI.style.display = 'inline-block';
+        overlay.style.pointerEvents = 'none';
+      } else {
+        textInput.style.display = 'none';
+        fontUI.style.display = 'none';
+      }
+      // if stamp is active, keep mode as 'stamp' until placed or canceled
+      if (stampActive) mode = 'stamp';
+      drawOverlay();
+    }
+
+    // mouse coordinates relative to canvas pixel grid
+    function getMousePos(evt) {
+      const rect = base.getBoundingClientRect();
+      // account for CSS scaling: map client coords -> canvas pixel coords
+      const scaleX = base.width / rect.width;
+      const scaleY = base.height / rect.height;
+      const x = Math.floor((evt.clientX - rect.left) * scaleX);
+      const y = Math.floor((evt.clientY - rect.top) * scaleY);
+      return { x, y };
+    }
+
+    // drawing (brush)
+    base.addEventListener('mousedown', (e) => {
+      if (mode === 'draw') {
+        drawing = true;
+        const p = getMousePos(e);
+        paintAt(p.x, p.y);
+      } else if (mode === 'text') {
+        // place text on base
+        placeTextAt(getMousePos(e));
+      } else if (mode === 'stamp' && stampActive) {
+        placeStampAt(getMousePos(e));
+      }
+    });
+    window.addEventListener('mouseup', () => { drawing = false; });
+
+    base.addEventListener('mousemove', (e) => {
+      const p = getMousePos(e);
+      mouseX = p.x; mouseY = p.y;
+      if (drawing && mode === 'draw') {
+        paintAt(p.x, p.y);
+      }
+      // always update overlay (ghosts)
+      drawOverlay();
+    });
+
+    // allow keyboard Enter to place text
+    base.addEventListener('dblclick', (e) => {
+      // helpful shortcut: double-click to place text or stamp
+      if (mode === 'text') placeTextAt(getMousePos(e));
+      if (mode === 'stamp' && stampActive) placeStampAt(getMousePos(e));
+    });
+
+    function paintAt(x, y) {
+      // brush draws a filled square centered at (x,y)
+      const half = Math.floor(brushSize / 2);
+      bctx.fillStyle = currentColor;
+      for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+          const px = x + dx, py = y + dy;
+          if (px >= 0 && py >= 0 && px < base.width && py < base.height) {
+            bctx.fillRect(px, py, 1, 1);
+          }
+        }
+      }
+    }
+
+    // TEXT: ghost preview and placement
+    function drawTextGhost(ctx, x, y, alpha = 0.6) {
+      if (!textInput.value) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = currentColor;
+      // use pixelated font look: use 'bold' to make it denser if desired
+      // font size is in pixels of canvas coordinates
+      ctx.font = `${fontSize.value}px monospace`;
+      ctx.textBaseline = 'top';
+      // draw text at (x,y) but ensure within bounds
+      // we will floor coords to pixel grid
+      ctx.fillText(textInput.value, Math.floor(x), Math.floor(y));
+      ctx.restore();
+    }
+
+    function placeTextAt(pos) {
+      if (!textInput.value) return;
+      bctx.fillStyle = currentColor;
+      bctx.font = `${fontSize.value}px monospace`;
+      bctx.textBaseline = 'top';
+      bctx.fillText(textInput.value, pos.x, pos.y);
+    }
+
+    // STAMP (image): user uploads -> stampActive true -> ghost follows cursor -> click to place
+    upload.addEventListener('change', (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const img = new Image();
+      img.onload = () => {
+        stampImage = img;
+        // compute scale so stamp fits within canvas while preserving aspect
+        const maxW = base.width * 0.9;
+        const maxH = base.height * 0.9;
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        stampScale = scale;
+        stampW = Math.round(img.width * stampScale);
+        stampH = Math.round(img.height * stampScale);
+        stampActive = true;
+        cancelStamp.style.display = 'inline-block';
+        setMode('stamp');
+        drawOverlay();
+      };
+      img.src = URL.createObjectURL(f);
+      // reset input so same file can be re-uploaded later if desired
+      ev.target.value = '';
+    });
+
+    function drawStampGhost(ctx, x, y, alpha = 0.6) {
+      if (!stampActive || !stampImage) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      // position so the stamp is centered at cursor
+      const drawX = Math.floor(x - stampW / 2);
+      const drawY = Math.floor(y - stampH / 2);
+      ctx.drawImage(stampImage, drawX, drawY, stampW, stampH);
+      ctx.restore();
+    }
+
+    function placeStampAt(pos) {
+      if (!stampActive || !stampImage) return;
+      const drawX = Math.floor(pos.x - stampW / 2);
+      const drawY = Math.floor(pos.y - stampH / 2);
+      // draw on base permanently
+      bctx.drawImage(stampImage, drawX, drawY, stampW, stampH);
+      // quantize the placed stamp to the 3-color palette to keep consistency
+      quantizeRegion(drawX, drawY, stampW, stampH);
+      // keep stampActive true to allow placing multiple times, or turn off:
+      // stampActive = false; cancelStamp.style.display = 'none'; setMode('draw');
+      // user can cancel explicitly; keep stamp active so they can place multiple stamps if they want
+      drawOverlay();
+    }
+
+    // quantize region to 3 colors: black white green
+    function quantizeRegion(x, y, w, h) {
+      // clamp to canvas
+      const sx = Math.max(0, x), sy = Math.max(0, y);
+      const ex = Math.min(base.width, x + w), ey = Math.min(base.height, y + h);
+      if (ex <= sx || ey <= sy) return;
+      const img = bctx.getImageData(sx, sy, ex - sx, ey - sy);
+      const data = img.data;
+      const palette = [
+        [0,0,0],
+        [255,255,255],
+        [0,255,0]
+      ];
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        let best = 0, bestDist = Infinity;
+        for (let j = 0; j < palette.length; j++) {
+          const pr = palette[j][0], pg = palette[j][1], pb = palette[j][2];
+          const d = (r-pr)*(r-pr) + (g-pg)*(g-pg) + (b-pb)*(b-pb);
+          if (d < bestDist) { bestDist = d; best = j; }
+        }
+        data[i] = palette[best][0];
+        data[i+1] = palette[best][1];
+        data[i+2] = palette[best][2];
+        // alpha remains 255
+      }
+      bctx.putImageData(img, sx, sy);
+    }
+
+    // overlay drawing: clear overlay then draw ghosts depending on mode
+    function drawOverlay() {
+      // clear overlay
+      octx.clearRect(0,0,overlay.width, overlay.height);
+      // draw cursor guides for draw mode (brush preview)
+      if (mode === 'draw') {
+        // draw a semi-transparent square showing brush size
+        octx.save();
+        octx.globalAlpha = 0.25;
+        octx.fillStyle = currentColor;
+        const half = Math.floor(brushSize / 2);
+        octx.fillRect(mouseX - half, mouseY - half, brushSize, brushSize);
+        octx.restore();
+      }
+      // text ghost
+      if ((mode === 'text') && textInput.value) {
+        drawTextGhost(octx, mouseX, mouseY, 0.6);
+      }
+      // stamp ghost
+      if ((mode === 'stamp' || stampActive) && stampActive) {
+        drawStampGhost(octx, mouseX, mouseY, 0.6);
+      }
+      // optionally draw pixel grid in overlay if needed (disabled by default)
+    }
+
+    // quantize full canvas to ensure only 3 colors (helper)
+    function quantizeFullCanvas() {
+      const img = bctx.getImageData(0,0,base.width, base.height);
+      const data = img.data;
+      const palette = [
+        [0,0,0],
+        [255,255,255],
+        [0,255,0]
+      ];
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        let best = 0, bestDist = Infinity;
+        for (let j = 0; j < palette.length; j++) {
+          const pr = palette[j][0], pg = palette[j][1], pb = palette[j][2];
+          const d = (r-pr)*(r-pr) + (g-pg)*(g-pg) + (b-pb)*(b-pb);
+          if (d < bestDist) { bestDist = d; best = j; }
+        }
+        data[i] = palette[best][0];
+        data[i+1] = palette[best][1];
+        data[i+2] = palette[best][2];
+      }
+      bctx.putImageData(img,0,0);
+    }
+
+    // EXPORT BMP (no transparency; background already green)
+    exportBmp.addEventListener('click', () => {
+      // quantize full canvas before export to ensure exact palette
+      quantizeFullCanvas();
+      const blob = canvasToBMP(base);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'betaflight_logo.bmp';
+      a.click();
+    });
+
+    // BMP exporter function (same as prior, robust)
+    function canvasToBMP(canvasEl) {
+      const w = canvasEl.width, h = canvasEl.height;
+      const ctx2 = canvasEl.getContext('2d');
+      const imgData = ctx2.getImageData(0,0,w,h).data;
+      const rowSize = (w * 3 + 3) & ~3;
+      const imageSize = rowSize * h;
+      const fileSize = 54 + imageSize;
+      const buffer = new ArrayBuffer(fileSize);
+      const view = new DataView(buffer);
+      let offset = 0;
+      function writeUint8(v){ view.setUint8(offset++, v); }
+      function writeUint16(v){ view.setUint16(offset, v, true); offset += 2; }
+      function writeUint32(v){ view.setUint32(offset, v, true); offset += 4; }
+      // Header
+      writeUint8(0x42); writeUint8(0x4D); // 'BM'
+      writeUint32(fileSize);
+      writeUint32(0);
+      writeUint32(54);
+      // DIB
+      writeUint32(40);
+      writeUint32(w);
+      writeUint32(h);
+      writeUint16(1);
+      writeUint16(24);
+      writeUint32(0);
+      writeUint32(imageSize);
+      writeUint32(2835);
+      writeUint32(2835);
+      writeUint32(0);
+      writeUint32(0);
+      // Pixel data (bottom-up)
+      let pos = 54;
+      for (let y = h - 1; y >= 0; y--) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          view.setUint8(pos++, imgData[i + 2]); // B
+          view.setUint8(pos++, imgData[i + 1]); // G
+          view.setUint8(pos++, imgData[i]);     // R
+        }
+        // padding
+        while ((pos - 54) % rowSize !== 0) { view.setUint8(pos++, 0); }
+      }
+      return new Blob([buffer], { type: 'image/bmp' });
+    }
+
+    // Initial overlay draw
+    drawOverlay();
+
+    // expose some debugging (optional)
+    window.BootLogo = {
+      baseCtx: bctx, overlayCtx: octx, setMode, quantizeFullCanvas
+    };
+
+  })();
+  </script>
 </body>
 </html>
