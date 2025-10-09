@@ -4,210 +4,410 @@
 <meta charset="UTF-8">
 <title>Betaflight Boot Logo Maker</title>
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
 body {
-  background: #000; color: #0f0; font-family: monospace; text-align:center; padding:20px;
+  background: #000;
+  color: #00ff00;
+  font-family: monospace;
+  text-align: center;
+  padding: 20px;
 }
-.canvas-wrap { display:inline-block; position:relative; border:1px solid #0f0; background:#0f0; line-height:0; }
-canvas { image-rendering: pixelated; display:block; width:576px; height:144px; cursor:crosshair; touch-action:none; }
-#overlay { position:absolute; left:0; top:0; pointer-events:none; }
-.toolbar { margin:10px 0; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; }
-input, select, button, label { background:#111; color:#0f0; border:1px solid #0f0; padding:4px 8px; font-family:monospace; }
-input[type=range]{width:120px; vertical-align:middle;}
-.small{font-size:12px;color:#7fff7f;}
+.canvas-wrap {
+  display: inline-block;
+  position: relative;
+  border: 1px solid #00ff00;
+  line-height: 0;
+  background: #00ff00; /* ensure no transparency */
+  touch-action: none;   /* important for mobile drawing */
+}
+canvas {
+  image-rendering: pixelated;
+  display: block;
+  width: 576px; /* 2x scale for easier editing */
+  height: 144px;
+  cursor: crosshair;
+}
+#overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none; /* overlay doesn't steal events */
+}
+.toolbar {
+  margin: 10px 0;
+}
+input, button, select, label {
+  background: #111;
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  font-family: monospace;
+  margin: 3px;
+  padding: 4px 8px;
+}
+input[type="range"] { width: 120px; vertical-align: middle; }
+.small { font-size: 12px; color: #7fff7f; }
+.controls-row { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:8px; }
 </style>
 </head>
 <body>
 <h1>🪰 Beta Boot Logo Maker</h1>
-<div class="toolbar">
-<label>Color: 
-  <select id="color">
-    <option value="#000000">Black</option>
-    <option value="#ffffff">White</option>
-    <option value="#00ff00" selected>Green</option>
-  </select>
-</label>
 
-<label>Brush: <input id="brushSize" type="range" min="1" max="16" value="1"> <span id="brushLabel" class="small">1</span></label>
+<div class="toolbar controls-row">
+  <label>Color:
+    <select id="color">
+      <option value="#000000">Black</option>
+      <option value="#ffffff">White</option>
+      <option value="#00ff00" selected>Green</option>
+    </select>
+  </label>
 
-<button id="drawMode">Draw</button>
-<button id="textMode">Text</button>
+  <label>Brush:
+    <input id="brushSize" type="range" min="1" max="16" value="1" />
+    <span id="brushLabel" class="small">1</span>
+  </label>
 
-<label id="fontUI" style="display:none;">Text size:
-<input id="fontSize" type="range" min="6" max="96" value="16"> <span id="fontLabel" class="small">16</span></label>
+  <button id="drawMode">Draw</button>
+  <button id="textMode">Text</button>
 
-<input id="textInput" placeholder="Type text…" style="display:none; width:160px;">
-<input type="file" id="upload" accept="image/*">
-<button id="cancelStamp" style="display:none;">Cancel Stamp</button>
-<button id="exportBmp">Export BMP</button>
+  <label id="fontUI" style="display:none;">Text size:
+    <input id="fontSize" type="range" min="6" max="96" value="16" />
+    <span id="fontLabel" class="small">16</span>
+  </label>
+
+  <input id="textInput" placeholder="Type text…" style="display:none; width:160px;" />
+
+  <input type="file" id="upload" accept="image/*" />
+
+  <button id="cancelStamp" style="display:none;">Cancel Stamp</button>
+
+  <button id="exportBmp">Export BMP</button>
 </div>
 
 <div class="canvas-wrap" id="canvasWrap">
-<canvas id="base" width="288" height="72"></canvas>
-<canvas id="overlay" width="288" height="72"></canvas>
+  <canvas id="base" width="288" height="72"></canvas>
+  <canvas id="overlay" width="288" height="72"></canvas>
 </div>
 
-<p class="small">Drag, pinch to scale & rotate stamps, text centered, brush previewed. FPV nerds, keep an eye on the console 😉</p>
+<p class="small">Use brush scale to adjust size. Upload images and place like a stamp. Desktop cursors show ghost previews. Mobile supports touch drag/tap placement.</p>
 
 <script>
 (function(){
-  const base=document.getElementById('base'), overlay=document.getElementById('overlay');
-  const bctx=base.getContext('2d',{willReadFrequently:true}), octx=overlay.getContext('2d');
-  bctx.imageSmoothingEnabled=octx.imageSmoothingEnabled=false;
-  bctx.fillStyle='#00FF00'; bctx.fillRect(0,0,base.width,base.height);
+  const base = document.getElementById('base');
+  const overlay = document.getElementById('overlay');
+  const wrap = document.getElementById('canvasWrap');
+
+  overlay.style.width = base.style.width;
+  overlay.style.height = base.style.height;
+
+  const bctx = base.getContext('2d', { willReadFrequently: true });
+  const octx = overlay.getContext('2d');
+  bctx.imageSmoothingEnabled = false;
+  octx.imageSmoothingEnabled = false;
+
+  bctx.fillStyle = '#00FF00';
+  bctx.fillRect(0,0,base.width, base.height);
 
   // UI
-  const colorEl=document.getElementById('color'), brushEl=document.getElementById('brushSize'), brushLabel=document.getElementById('brushLabel');
-  const drawBtn=document.getElementById('drawMode'), textBtn=document.getElementById('textMode');
-  const textInput=document.getElementById('textInput'), fontUI=document.getElementById('fontUI'), fontSize=document.getElementById('fontSize'), fontLabel=document.getElementById('fontLabel');
-  const upload=document.getElementById('upload'), cancelStamp=document.getElementById('cancelStamp'), exportBmp=document.getElementById('exportBmp');
+  const colorEl = document.getElementById('color');
+  const brushEl = document.getElementById('brushSize');
+  const brushLabel = document.getElementById('brushLabel');
+  const drawBtn = document.getElementById('drawMode');
+  const textBtn = document.getElementById('textMode');
+  const textInput = document.getElementById('textInput');
+  const fontUI = document.getElementById('fontUI');
+  const fontSize = document.getElementById('fontSize');
+  const fontLabel = document.getElementById('fontLabel');
+  const upload = document.getElementById('upload');
+  const cancelStamp = document.getElementById('cancelStamp');
+  const exportBmp = document.getElementById('exportBmp');
 
-  let currentColor=colorEl.value, brushSize=parseInt(brushEl.value,10);
-  let mode='draw', drawing=false;
-  let stampImage=null, stampW=0, stampH=0, stampScale=1, stampRotation=0, stampActive=false;
-  let mouseX=0, mouseY=0;
+  let currentColor = colorEl.value;
+  let brushSize = parseInt(brushEl.value,10);
+  let mode = 'draw';
+  let drawing = false;
 
-  let lastGreenTap=0, greenTapCount=0; // Easter egg
+  // Stamp state
+  let stampImage = null;
+  let stampW = 0, stampH = 0;
+  let stampScale = 1;
+  let stampActive = false;
 
-  colorEl.addEventListener('change',()=>{
-    currentColor=colorEl.value;
-    if(currentColor==='#00ff00'){
-      const now=Date.now();
-      if(now-lastGreenTap<600){greenTapCount++; if(greenTapCount===3){console.log('🪰 FPV secret unlocked: Keep calm and throttle on!'); greenTapCount=0;}}
-      else greenTapCount=1;
-      lastGreenTap=now;
+  // ghost cursor pos
+  let mouseX = 0, mouseY = 0;
+
+  // mobile pinch tracking
+  let touchStartDistance = null;
+  let initialStampScale = 1;
+
+  // UI events
+  colorEl.addEventListener('change', ()=>{ currentColor = colorEl.value; });
+  brushEl.addEventListener('input', ()=> { brushSize=parseInt(brushEl.value,10); brushLabel.textContent=brushSize; });
+  fontSize.addEventListener('input', ()=>{ fontLabel.textContent=fontSize.value; });
+  drawBtn.addEventListener('click', ()=> setMode('draw'));
+  textBtn.addEventListener('click', ()=> setMode('text'));
+  cancelStamp.addEventListener('click', ()=>{ stampActive=false; stampImage=null; cancelStamp.style.display='none'; setMode('draw'); drawOverlay(); });
+
+  function setMode(m) {
+    mode = m;
+    if(m==='text'){
+      textInput.style.display='inline-block';
+      fontUI.style.display='inline-block';
+    }else{
+      textInput.style.display='none';
+      fontUI.style.display='none';
     }
-  });
-
-  brushEl.addEventListener('input',()=>{brushSize=parseInt(brushEl.value,10); brushLabel.textContent=brushSize;});
-  fontSize.addEventListener('input',()=>{fontLabel.textContent=fontSize.value;});
-  drawBtn.addEventListener('click',()=>setMode('draw'));
-  textBtn.addEventListener('click',()=>setMode('text'));
-  cancelStamp.addEventListener('click',()=>{stampImage=null; stampActive=false; cancelStamp.style.display='none'; setMode('draw'); drawOverlay();});
-
-  function setMode(m){
-    mode=m;
-    if(m==='text'){textInput.style.display='inline-block'; fontUI.style.display='inline-block'; overlay.style.pointerEvents='none';}
-    else{textInput.style.display='none'; fontUI.style.display='none'; overlay.style.pointerEvents='none';}
     if(stampActive) mode='stamp';
     drawOverlay();
   }
 
-  function getPos(evt){
-    const rect=base.getBoundingClientRect(), scaleX=base.width/rect.width, scaleY=base.height/rect.height;
-    const x=Math.floor((evt.clientX-rect.left)*scaleX), y=Math.floor((evt.clientY-rect.top)*scaleY);
+  function getMousePos(evt){
+    const rect = base.getBoundingClientRect();
+    const scaleX = base.width / rect.width;
+    const scaleY = base.height / rect.height;
+    const x = Math.floor((evt.clientX - rect.left) * scaleX);
+    const y = Math.floor((evt.clientY - rect.top) * scaleY);
     return {x,y};
   }
 
   function paintAt(x,y){
-    const half=Math.floor(brushSize/2); bctx.fillStyle=currentColor;
-    for(let dy=-half;dy<=half;dy++){for(let dx=-half;dx<=half;dx++){
-      const px=x+dx, py=y+dy; if(px>=0&&py>=0&&px<base.width&&py<base.height){bctx.fillRect(px,py,1,1);}
-    }}
+    const half = Math.floor(brushSize/2);
+    bctx.fillStyle=currentColor;
+    for(let dy=-half;dy<=half;dy++){
+      for(let dx=-half;dx<=half;dx++){
+        const px=x+dx, py=y+dy;
+        if(px>=0 && py>=0 && px<base.width && py<base.height){
+          bctx.fillRect(px, py, 1, 1);
+        }
+      }
+    }
   }
 
-  function drawTextGhost(ctx,x,y,alpha=0.6){if(!textInput.value)return;
-    ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=currentColor; ctx.font=`${fontSize.value}px monospace`; ctx.textBaseline='middle'; ctx.textAlign='center';
-    ctx.fillText(textInput.value,Math.floor(x),Math.floor(y)); ctx.restore();
+  function drawTextGhost(ctx,x,y,alpha=0.6){
+    if(!textInput.value) return;
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle=currentColor;
+    ctx.font=`${fontSize.value}px monospace`;
+    ctx.textBaseline='middle';
+    const metrics = ctx.measureText(textInput.value);
+    ctx.fillText(textInput.value, x - metrics.width/2, y);
+    ctx.restore();
   }
 
-  function placeTextAt(pos){if(!textInput.value)return;
-    bctx.fillStyle=currentColor; bctx.font=`${fontSize.value}px monospace`; bctx.textBaseline='middle'; bctx.textAlign='center';
-    bctx.fillText(textInput.value,pos.x,pos.y);
+  function placeTextAt(pos){
+    if(!textInput.value) return;
+    bctx.fillStyle=currentColor;
+    bctx.font=`${fontSize.value}px monospace`;
+    bctx.textBaseline='middle';
+    const metrics = bctx.measureText(textInput.value);
+    bctx.fillText(textInput.value,pos.x - metrics.width/2, pos.y);
   }
 
-  upload.addEventListener('change',ev=>{
-    const f=ev.target.files[0]; if(!f)return;
-    const img=new Image();
-    img.onload=()=>{
-      stampImage=img;
-      const maxW=base.width*0.9, maxH=base.height*0.9;
-      const scale=Math.min(maxW/img.width,maxH/img.height,1);
-      stampScale=scale; stampW=Math.round(img.width*stampScale); stampH=Math.round(img.height*stampScale);
-      stampActive=true; cancelStamp.style.display='inline-block'; setMode('stamp'); drawOverlay();
-    };
-    img.src=URL.createObjectURL(f); ev.target.value='';
-  });
-
-  function drawStampGhost(ctx,x,y,alpha=0.6){if(!stampActive||!stampImage)return;
-    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.rotate(stampRotation); ctx.drawImage(stampImage,-stampW/2,-stampH/2,stampW,stampH); ctx.restore();
+  function drawStampGhost(ctx,x,y,alpha=0.6){
+    if(!stampActive || !stampImage) return;
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    const drawX = Math.floor(x - stampW/2);
+    const drawY = Math.floor(y - stampH/2);
+    ctx.drawImage(stampImage, drawX, drawY, stampW, stampH);
+    ctx.restore();
   }
 
-  function placeStampAt(pos){if(!stampActive||!stampImage)return;
-    bctx.save(); bctx.translate(pos.x,pos.y); bctx.rotate(stampRotation); bctx.drawImage(stampImage,-stampW/2,-stampH/2,stampW,stampH); bctx.restore();
-    quantizeRegion(pos.x-stampW/2,pos.y-stampH/2,stampW,stampH); drawOverlay();
+  function placeStampAt(pos){
+    if(!stampActive || !stampImage) return;
+    const drawX = Math.floor(pos.x - stampW/2);
+    const drawY = Math.floor(pos.y - stampH/2);
+    bctx.drawImage(stampImage, drawX, drawY, stampW, stampH);
+    quantizeRegion(drawX, drawY, stampW, stampH);
+    drawOverlay();
   }
 
-  function quantizeRegion(x,y,w,h){const sx=Math.max(0,x),sy=Math.max(0,y),ex=Math.min(base.width,x+w),ey=Math.min(base.height,y+h);
-    if(ex<=sx||ey<=sy)return; const img=bctx.getImageData(sx,sy,ex-sx,ey-sy),data=img.data,palette=[[0,0,0],[255,255,255],[0,255,0]];
-    for(let i=0;i<data.length;i+=4){const r=data[i],g=data[i+1],b=data[i+2];let best=0,bestDist=Infinity;
-      for(let j=0;j<palette.length;j++){const pr=palette[j][0],pg=palette[j][1],pb=palette[j][2];
-        const d=(r-pr)*(r-pr)+(g-pg)*(g-pg)+(b-pb)*(b-pb); if(d<bestDist){bestDist=d;best=j;}
-      } data[i]=palette[best][0]; data[i+1]=palette[best][1]; data[i+2]=palette[best][2];
-    } bctx.putImageData(img,sx,sy);
+  function quantizeRegion(x,y,w,h){
+    const sx=Math.max(0,x), sy=Math.max(0,y);
+    const ex=Math.min(base.width,x+w), ey=Math.min(base.height,y+h);
+    if(ex<=sx||ey<=sy) return;
+    const img=bctx.getImageData(sx,sy,ex-sx,ey-sy);
+    const data=img.data;
+    const palette=[[0,0,0],[255,255,255],[0,255,0]];
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i], g=data[i+1], b=data[i+2];
+      let best=0, bestDist=Infinity;
+      for(let j=0;j<palette.length;j++){
+        const pr=palette[j][0], pg=palette[j][1], pb=palette[j][2];
+        const d=(r-pr)*(r-pr)+(g-pg)*(g-pg)+(b-pb)*(b-pb);
+        if(d<bestDist){bestDist=d; best=j;}
+      }
+      data[i]=palette[best][0];
+      data[i+1]=palette[best][1];
+      data[i+2]=palette[best][2];
+    }
+    bctx.putImageData(img,sx,sy);
   }
 
   function drawOverlay(){
     octx.clearRect(0,0,overlay.width,overlay.height);
-    if(mode==='draw'){octx.save(); octx.globalAlpha=0.25; octx.fillStyle=currentColor;
-      const half=Math.floor(brushSize/2); octx.fillRect(mouseX-half,mouseY-half,brushSize,brushSize); octx.restore();}
-    if(mode==='text'&&textInput.value)drawTextGhost(octx,mouseX,mouseY,0.6);
-    if((mode==='stamp'||stampActive)&&stampActive)drawStampGhost(octx,mouseX,mouseY,0.6);
-  }
-
-  function quantizeFullCanvas(){const img=bctx.getImageData(0,0,base.width,base.height),data=img.data,palette=[[0,0,0],[255,255,255],[0,255,0]];
-    for(let i=0;i<data.length;i+=4){const r=data[i],g=data[i+1],b=data[i+2];let best=0,bestDist=Infinity;
-      for(let j=0;j<palette.length;j++){const pr=palette[j][0],pg=palette[j][1],pb=palette[j][2];
-        const d=(r-pr)*(r-pr)+(g-pg)*(g-pg)+(b-pb)*(b-pb);if(d<bestDist){bestDist=d;best=j;}}
-      data[i]=palette[best][0]; data[i+1]=palette[best][1]; data[i+2]=palette[best][2];}
-    bctx.putImageData(img,0,0);
-  }
-
-  exportBmp.addEventListener('click',()=>{quantizeFullCanvas(); const blob=canvasToBMP(base); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='betaflight_logo.bmp'; a.click();});
-
-  function canvasToBMP(canvasEl){const w=canvasEl.width,h=canvasEl.height,ctx2=canvasEl.getContext('2d'),imgData=ctx2.getImageData(0,0,w,h).data;
-    const rowSize=(w*3+3)&~3,imageSize=rowSize*h,fileSize=54+imageSize,buffer=new ArrayBuffer(fileSize),view=new DataView(buffer);let offset=0;
-    function writeUint8(v){view.setUint8(offset++,v);}function writeUint16(v){view.setUint16(offset,v,true);offset+=2;}function writeUint32(v){view.setUint32(offset,v,true);offset+=4;}
-    writeUint8(0x42);writeUint8(0x4D);writeUint32(fileSize);writeUint32(0);writeUint32(54);writeUint32(40);writeUint32(w);writeUint32(h);writeUint16(1);writeUint16(24);writeUint32(0);writeUint32(imageSize);
-    writeUint32(2835);writeUint32(2835);writeUint32(0);writeUint32(0);let pos=54;
-    for(let y=h-1;y>=0;y--){for(let x=0;x<w;x++){const i=(y*w+x)*4;view.setUint8(pos++,imgData[i+2]);view.setUint8(pos++,imgData[i+1]);view.setUint8(pos++,imgData[i]);}while((pos-54)%rowSize!==0){view.setUint8(pos++,0);}} return new Blob([buffer],{type:'image/bmp'});}
-
-  // MOBILE TOUCH
-  let ongoingTouches=[];
-  overlay.addEventListener('touchstart',e=>{
-    e.preventDefault();
-    for(let t of e.changedTouches){ongoingTouches.push({id:t.identifier,x:t.clientX,y:t.clientY})}
-    if(e.touches.length===1){const pos=getPos(e.touches[0]);mouseX=pos.x;mouseY=pos.y;
-      if(mode==='draw'){drawing=true; paintAt(pos.x,pos.y);}
-      if(mode==='text'){drawOverlay();} 
+    if(mode==='draw'){
+      octx.save();
+      octx.globalAlpha=0.25;
+      octx.fillStyle=currentColor;
+      const half=Math.floor(brushSize/2);
+      octx.fillRect(mouseX-half,mouseY-half,brushSize,brushSize);
+      octx.restore();
     }
+    if(mode==='text') drawTextGhost(octx,mouseX,mouseY,0.6);
+    if((mode==='stamp' || stampActive) && stampActive) drawStampGhost(octx,mouseX,mouseY,0.6);
+  }
+
+  // MOUSE EVENTS
+  base.addEventListener('mousedown',e=>{
+    const pos=getMousePos(e);
+    if(mode==='draw'){drawing=true; paintAt(pos.x,pos.y);}
+    else if(mode==='text'){placeTextAt(pos);}
+    else if(mode==='stamp' && stampActive){placeStampAt(pos);}
+  });
+  window.addEventListener('mouseup',()=>{drawing=false;});
+  base.addEventListener('mousemove',e=>{
+    const pos=getMousePos(e);
+    mouseX=pos.x; mouseY=pos.y;
+    if(drawing && mode==='draw') paintAt(pos.x,pos.y);
+    drawOverlay();
   });
 
-  overlay.addEventListener('touchmove',e=>{
+  // TOUCH EVENTS (mobile)
+  base.addEventListener('touchstart', e=>{
     e.preventDefault();
-    if(e.touches.length===1){const pos=getPos(e.touches[0]);mouseX=pos.x;mouseY=pos.y;if(drawing&&mode==='draw') paintAt(pos.x,pos.y);}
-    else if(e.touches.length===2&&stampActive){
-      const t0=e.touches[0], t1=e.touches[1];
-      const dx=t1.clientX-t0.clientX, dy=t1.clientY-t0.clientY;
-      const distance=Math.hypot(dx,dy);
-      const angle=Math.atan2(dy,dx);
-      if(!overlay.startDistance){overlay.startDistance=distance; overlay.startRotation=angle; overlay.startScale=stampScale; overlay.startAngle=stampRotation;} 
-      stampScale=overlay.startScale*(distance/overlay.startDistance); stampRotation=overlay.startAngle+(angle-overlay.startRotation);
+    if(e.touches.length===1){
+      const pos=getTouchPos(e.touches[0]);
+      mouseX=pos.x; mouseY=pos.y;
+      if(mode==='draw'){drawing=true; paintAt(pos.x,pos.y);}
+      else if(mode==='text'){placeTextAt(pos);}
+      else if(mode==='stamp' && stampActive){placeStampAt(pos);}
+    } else if(e.touches.length===2 && stampActive){
+      // pinch start
+      touchStartDistance = getDistance(e.touches[0], e.touches[1]);
+      initialStampScale = stampScale;
     }
     drawOverlay();
   });
 
-  overlay.addEventListener('touchend',e=>{
+  base.addEventListener('touchmove', e=>{
     e.preventDefault();
-    for(let t of e.changedTouches){ongoingTouches=ongoingTouches.filter(ot=>ot.id!==t.identifier);}
-    if(e.touches.length===0){drawing=false; overlay.startDistance=null;}
-    if(e.changedTouches.length>0&&stampActive&&e.touches.length===0){placeStampAt({x:mouseX,y:mouseY});}
+    if(e.touches.length===1){
+      const pos=getTouchPos(e.touches[0]);
+      mouseX=pos.x; mouseY=pos.y;
+      if(drawing && mode==='draw') paintAt(pos.x,pos.y);
+    } else if(e.touches.length===2 && stampActive){
+      const newDist = getDistance(e.touches[0], e.touches[1]);
+      stampScale = initialStampScale * (newDist / touchStartDistance);
+      stampW = Math.round(stampImage.width * stampScale);
+      stampH = Math.round(stampImage.height * stampScale);
+    }
+    drawOverlay();
   });
+
+  base.addEventListener('touchend', e=>{
+    if(e.touches.length===0) drawing=false;
+    if(e.touches.length<2) touchStartDistance=null;
+  });
+
+  function getTouchPos(touch){
+    const rect=base.getBoundingClientRect();
+    const scaleX=base.width/rect.width;
+    const scaleY=base.height/rect.height;
+    return {x: Math.floor((touch.clientX-rect.left)*scaleX), y: Math.floor((touch.clientY-rect.top)*scaleY)};
+  }
+
+  function getDistance(t1,t2){
+    const dx=t2.clientX-t1.clientX;
+    const dy=t2.clientY-t1.clientY;
+    return Math.hypot(dx,dy);
+  }
+
+  // IMAGE UPLOAD
+  upload.addEventListener('change', ev=>{
+    const f = ev.target.files && ev.target.files[0];
+    if(!f) return;
+    const img = new Image();
+    img.onload=()=>{
+      stampImage=img;
+      const maxW = base.width * 0.9;
+      const maxH = base.height * 0.9;
+      const scale=Math.min(maxW/img.width,maxH/img.height,1);
+      stampScale=scale;
+      stampW=Math.round(img.width*stampScale);
+      stampH=Math.round(img.height*stampScale);
+      stampActive=true;
+      cancelStamp.style.display='inline-block';
+      setMode('stamp');
+      drawOverlay();
+    };
+    img.src=URL.createObjectURL(f);
+    ev.target.value='';
+  });
+
+  // EXPORT BMP
+  exportBmp.addEventListener('click',()=>{
+    quantizeFullCanvas();
+    const blob = canvasToBMP(base);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='betaflight_logo.bmp';
+    a.click();
+  });
+
+  function quantizeFullCanvas(){
+    const img=bctx.getImageData(0,0,base.width,base.height);
+    const data=img.data;
+    const palette=[[0,0,0],[255,255,255],[0,255,0]];
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i],g=data[i+1],b=data[i+2];
+      let best=0,bestDist=Infinity;
+      for(let j=0;j<palette.length;j++){
+        const pr=palette[j][0],pg=palette[j][1],pb=palette[j][2];
+        const d=(r-pr)*(r-pr)+(g-pg)*(g-pg)+(b-pb)*(b-pb);
+        if(d<bestDist){bestDist=d; best=j;}
+      }
+      data[i]=palette[best][0];
+      data[i+1]=palette[best][1];
+      data[i+2]=palette[best][2];
+    }
+    bctx.putImageData(img,0,0);
+  }
+
+  function canvasToBMP(canvasEl){
+    const w=canvasEl.width, h=canvasEl.height;
+    const ctx2=canvasEl.getContext('2d');
+    const imgData=ctx2.getImageData(0,0,w,h).data;
+    const rowSize = (w*3+3)&~3;
+    const imageSize=rowSize*h;
+    const fileSize=54+imageSize;
+    const buffer=new ArrayBuffer(fileSize);
+    const view=new DataView(buffer);
+    let offset=0;
+    function writeUint8(v){view.setUint8(offset++,v);}
+    function writeUint16(v){view.setUint16(offset,v,true); offset+=2;}
+    function writeUint32(v){view.setUint32(offset,v,true); offset+=4;}
+    writeUint8(0x42);writeUint8(0x4D);
+    writeUint32(fileSize); writeUint32(0); writeUint32(54);
+    writeUint32(40); writeUint32(w); writeUint32(h); writeUint16(1); writeUint16(24); writeUint32(0);
+    writeUint32(imageSize); writeUint32(2835); writeUint32(2835); writeUint32(0); writeUint32(0);
+    let pos=54;
+    for(let y=h-1;y>=0;y--){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        view.setUint8(pos++,imgData[i+2]);
+        view.setUint8(pos++,imgData[i+1]);
+        view.setUint8(pos++,imgData[i]);
+      }
+      while((pos-54)%rowSize!==0) view.setUint8(pos++,0);
+    }
+    return new Blob([buffer],{type:'image/bmp'});
+  }
 
   drawOverlay();
 })();
+
 </script>
 </body>
 </html>
