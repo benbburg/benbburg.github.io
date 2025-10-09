@@ -1,7 +1,6 @@
-html, body {
+#overlay {
+  touch-action: none;
 }
-
-
 canvas {
-  touch-action: none;      /* ensures canvas captures touches */
+  touch-action: none;  /* prevents scrolling/zooming while drawing */
 }
